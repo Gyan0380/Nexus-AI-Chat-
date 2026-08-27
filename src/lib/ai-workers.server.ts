@@ -3,7 +3,6 @@
  * Runs three worker models in parallel and hands their drafts to Gemini for synthesis.
  */
 
-// Increased timeout to 25 seconds to allow time for generating large code blocks
 const WORKER_TIMEOUT_MS = 25_000;
 
 async function postJson(url: string, apiKey: string, body: unknown) {
@@ -35,12 +34,12 @@ function chatBody(model: string, prompt: string) {
       {
         role: "system",
         content:
-          "You are an expert programming and general assistant. Provide detailed, accurate, and complete answers. If asked for code, write the full code block. If the request is malicious, illegal, or asks how to hack/exploit software/games, reply with the exact phrase 'SAFETY_BLOCK'.",
+          "You are an expert developer. If the user asks to build a full app or game, DO NOT write all the code at once. Follow this exact format: 1) Explain the game/app details. 2) Provide the full file structure. 3) Write the code for ONLY the first main file. 4) Tell the user to type 'next' to get the next file. If the request is malicious, reply 'SAFETY_BLOCK'.",
       },
       { role: "user", content: prompt },
     ],
     temperature: 0.5,
-    max_tokens: 2000, // Increased to 2000 to allow large code generation
+    max_tokens: 2000,
   };
 }
 
@@ -79,7 +78,6 @@ async function callCerebras(prompt: string) {
 
 export type WorkerResult = { name: string; text: string; ok: boolean; error?: string };
 
-/** Fan out to the three worker models simultaneously. */
 export async function runWorkers(prompt: string): Promise<WorkerResult[]> {
   const workers: Array<[string, Promise<string>]> = [
     ["Groq", callGroq(prompt)],
@@ -100,16 +98,13 @@ export async function runWorkers(prompt: string): Promise<WorkerResult[]> {
   return settled;
 }
 
-/** Fourth model: applies safety filters and merges drafts into one finalized answer. */
 export async function synthesize(prompt: string, drafts: WorkerResult[]): Promise<string> {
-  // 1. Fast keyword guardrail
   const blockedKeywords = ["exploit", "malware", "ddos", "ransomware", "keylogger"];
   const lowerPrompt = prompt.toLowerCase();
   if (blockedKeywords.some((kw) => lowerPrompt.includes(kw))) {
     return "🛡️ **Safety Policy Notice:** This request was blocked because it contains potentially harmful or abusive topics.";
   }
 
-  // 2. Worker safety block trigger
   const workerSafetyBlock = drafts.some((d) => d.text.includes("SAFETY_BLOCK"));
   if (workerSafetyBlock) {
     return "🛡️ **Safety Policy Notice:** The AI models refused this prompt in accordance with safety and security guidelines.";
@@ -117,9 +112,13 @@ export async function synthesize(prompt: string, drafts: WorkerResult[]): Promis
 
   const usable = drafts.filter((d) => d.ok && d.text.trim().length > 0);
   
-  // 3. Fallback when all workers fail or refuse silently
+  // 🔥 THE NEW DETAILED ERROR LOGGER
   if (usable.length === 0) {
-    return "⚠️ The worker models were unable to generate drafts for this query. Please rephrase your question.";
+    const errorDetails = drafts
+      .map((d) => `- **${d.name}:** ${d.error || "Refused to answer (Empty text)"}`)
+      .join("\n");
+
+    return `⚠️ **Worker Pipeline Failed:** All three background AI models failed to process this request. This usually happens if you hit an API rate limit or if your keys are missing.\n\n**Here are the specific errors from your APIs:**\n${errorDetails}`;
   }
 
   const key = process.env['GEMINI_API_KEY'];
@@ -133,9 +132,9 @@ export async function synthesize(prompt: string, drafts: WorkerResult[]): Promis
     "You are the synthesis layer of a multi-model system.",
     "Below is the user's question followed by independent draft answers from other models.",
     "Merge them into ONE single, logical, finalized answer.",
-    "Resolve contradictions using the most defensible reasoning, drop repetition and filler,",
-    "keep every genuinely useful detail, and never mention the drafts, the models, or this process.",
-    "Reply only with the final answer, formatted in clean markdown.",
+    "CRITICAL RULE: If the user asked to build a full app/game, your final output MUST only contain the explanation, the project structure, and ONE file of code. Ask the user to reply 'next' for the rest.",
+    "Resolve contradictions, drop repetition, and never mention the drafts or models.",
+    "Reply only with the final answer formatted in clean markdown.",
     "",
     `## User question\n${prompt}`,
     "",
@@ -150,7 +149,7 @@ export async function synthesize(prompt: string, drafts: WorkerResult[]): Promis
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: instruction }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 4000 }, // Increased to 4000 for large code outputs
+        generationConfig: { temperature: 0.4, maxOutputTokens: 4000 },
       }),
     },
   );
