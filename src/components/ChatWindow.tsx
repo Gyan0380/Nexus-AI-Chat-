@@ -24,7 +24,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController null |>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
