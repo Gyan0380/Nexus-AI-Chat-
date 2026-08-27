@@ -47,7 +47,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     e.target.style.height = `${e.target.scrollHeight}px`;
   };
 
-  // Improved Speech Function with Better Voices
   function toggleSpeech(messageId: string, text: string) {
     if (speakingId === messageId) {
       window.speechSynthesis.cancel();
@@ -61,7 +60,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Try to find a better, more natural voice
     const voices = window.speechSynthesis.getVoices();
     const betterVoice = voices.find(v => 
       v.name.includes("Google UK English") || 
@@ -70,8 +68,8 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     );
     if (betterVoice) utterance.voice = betterVoice;
     
-    utterance.rate = 1.05; // Slightly faster
-    utterance.pitch = 1.1; // Slightly higher pitch for less robotic tone
+    utterance.rate = 1.05;
+    utterance.pitch = 1.1;
 
     utterance.onend = () => setSpeakingId(null);
     setSpeakingId(messageId);
@@ -128,18 +126,26 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }
 
-  // Parses markdown and creates beautiful code boxes
-  function renderMessage(content: string) {
+  function renderMessage(content: string, messageId: string) {
     const parts = content.split(/(```[\s\S]*?```)/g);
     return parts.map((part, index) => {
       if (part.startsWith("```") && part.endsWith("```")) {
         const lines = part.slice(3, -3).split("\n");
         const language = lines[0].trim();
         const code = lines.slice(1).join("\n");
+        const blockId = `${messageId}-code-${index}`; // Unique ID for this specific code block
+
         return (
           <div key={index} className="my-3 overflow-hidden rounded-md bg-zinc-950 border border-zinc-800 w-full">
-            <div className="flex items-center justify-between bg-zinc-900 px-4 py-1.5 text-xs text-zinc-400 font-mono">
+            <div className="flex items-center justify-between bg-zinc-900 px-4 py-2 text-xs text-zinc-400 font-mono">
               <span>{language || "code"}</span>
+              <button
+                onClick={() => copyToClipboard(blockId, code)}
+                className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors"
+              >
+                {copiedId === blockId ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                {copiedId === blockId ? <span className="text-green-500">Copied!</span> : "Copy code"}
+              </button>
             </div>
             <pre className="overflow-x-auto p-4 text-[13px] text-zinc-50 leading-relaxed font-mono">
               <code>{code}</code>
@@ -182,7 +188,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                 {m.role === "assistant" ? (
                   <div className="flex flex-col gap-2 items-start max-w-[100%] sm:max-w-[85%] min-w-0 w-full">
                     <div className="w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap border border-border bg-card text-card-foreground shadow-sm">
-                      {renderMessage(m.content)}
+                      {renderMessage(m.content, m.id)}
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -210,10 +216,9 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                         ) : (
                           <Copy className="size-3.5 mr-1.5" />
                         )}
-                        {copiedId === m.id ? "Copied" : "Copy"}
+                        {copiedId === m.id ? "Copied" : "Copy Message"}
                       </Button>
                       
-                      {/* Smart Next Button */}
                       {isLatest && hasNextPrompt && !sending && (
                         <Button 
                           onClick={() => send("Next")}
