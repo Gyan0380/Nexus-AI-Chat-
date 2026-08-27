@@ -21,14 +21,18 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const [stage, setStage] = useState(0);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  
   const endRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null); // Added ref for auto-resize
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
+  // Scroll to bottom on new message
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
+  // Loading stages timer
   useEffect(() => {
     if (!sending) {
       setStage(0);
@@ -37,6 +41,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     const id = setInterval(() => setStage((s) => (s + 1) % STAGES.length), 3000);
     return () => clearInterval(id);
   }, [sending]);
+
+  // Auto-resize textarea when text changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [prompt]);
 
   function toggleSpeech(messageId: string, text: string) {
     if (speakingId === messageId) {
@@ -62,6 +74,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     if (!text || sending) return;
     setSending(true);
     setPrompt("");
+    
+    // Reset textarea height immediately upon sending
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+
     try {
       const token = await getIdToken();
       const res = await fetch("/api/chat", {
@@ -73,7 +91,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
     } catch (error) {
       toast.error((error as Error).message);
-      setPrompt(text);
+      setPrompt(text); // Put text back if failed
     } finally {
       setSending(false);
     }
@@ -173,6 +191,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       <div className="border-t border-border bg-surface/70 px-2 sm:px-4 py-3 sm:py-4 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
           <Textarea
+            ref={textareaRef}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
@@ -183,7 +202,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             }}
             placeholder="Send a message..."
             rows={1}
-            className="max-h-32 min-h-11 resize-none text-base sm:text-sm"
+            className="max-h-72 min-h-11 resize-none text-base sm:text-sm overflow-y-auto"
             disabled={sending}
           />
           <Button
@@ -196,7 +215,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </Button>
         </div>
         <p className="mt-2 text-center text-[10px] sm:text-xs text-muted-foreground">
-          Each answer costs 1 token.
+          Cost varies by task size: 1 token (Short) • 2 tokens (Medium) • 3 tokens (Large Code).
         </p>
       </div>
     </div>
