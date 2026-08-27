@@ -24,7 +24,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController null |>(null);
+  const abortControllerRef = useRef<AbortController | null>(null); // Fixed type syntax here
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
@@ -129,9 +129,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }
 
-  // Bulletproof code block and text parser
   function renderMessage(content: string, messageId: string) {
-    // Regex splits by ```lang ... ``` blocks safely
     const parts = content.split(/(```[\w]*\n[\s\S]*?```)/g);
 
     return parts.map((part, index) => {
@@ -163,8 +161,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
       if (!part) return null;
 
-      // Regular text block with individual copy text button option if needed
-      const textBlockId = `${messageId}-text-${index}`;
       return (
         <div key={index} className="relative group my-1">
           <span className="whitespace-pre-wrap block leading-relaxed">{part}</span>
