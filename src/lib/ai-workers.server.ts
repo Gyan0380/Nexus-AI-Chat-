@@ -41,21 +41,21 @@ function chatBody(model: string, prompt: string, history: any[] = []) {
 async function callGroq(prompt: string, history: any[]) {
   const key = process.env['GROQ_API_KEY'];
   if (!key) throw new Error("Missing GROQ_API_KEY");
-  const json = await postJson("https://api.groq.com/openai/v1/chat/completions", key, chatBody(process.env['GROQ_MODEL'] ?? "llama-3.3-70b-versatile", prompt, history));
+  const json = await postJson("https://api.groq.com/openai/v1/chat/completions", key, chatBody(process.env['GROQ_MODEL'] ?? "llama-3.1-70b-versatile", prompt, history));
   return json.choices?.[0]?.message?.content ?? "";
 }
 
 async function callOpenRouter(prompt: string, history: any[]) {
   const key = process.env['OPENROUTER_API_KEY'];
   if (!key) throw new Error("Missing OPENROUTER_API_KEY");
-  const json = await postJson("https://openrouter.ai/api/v1/chat/completions", key, chatBody(process.env['OPENROUTER_MODEL'] ?? "meta-llama/llama-3.3-70b-instruct", prompt, history));
+  const json = await postJson("https://openrouter.ai/api/v1/chat/completions", key, chatBody(process.env['OPENROUTER_MODEL'] ?? "meta-llama/llama-3.1-70b-instruct", prompt, history));
   return json.choices?.[0]?.message?.content ?? "";
 }
 
 async function callCerebras(prompt: string, history: any[]) {
   const key = process.env['CEREBRAS_API_KEY'];
   if (!key) throw new Error("Missing CEREBRAS_API_KEY");
-  const json = await postJson("https://api.cerebras.ai/v1/chat/completions", key, chatBody(process.env['CEREBRAS_MODEL'] ?? "llama-3.3-70b", prompt, history));
+  const json = await postJson("https://api.cerebras.ai/v1/chat/completions", key, chatBody(process.env['CEREBRAS_MODEL'] ?? "llama3.1-70b", prompt, history));
   return json.choices?.[0]?.message?.content ?? "";
 }
 
@@ -96,7 +96,6 @@ export async function synthesize(prompt: string, drafts: WorkerResult[], history
 
   const key = process.env['GEMINI_API_KEY'];
   
-  // 🚀 FALLBACK: If Gemini key is missing or hits quota (429), just return Groq's answer directly!
   if (!key) {
     return usable[0].text;
   }
@@ -118,7 +117,6 @@ export async function synthesize(prompt: string, drafts: WorkerResult[], history
     `## Drafts to Synthesize\n${draftBlock}`,
   ].join("\n");
 
-  // Changed to gemini-1.5-flash which is the correct valid model name for the free tier
   const model = process.env['GEMINI_MODEL'] ?? "gemini-1.5-flash";
   
   try {
@@ -131,7 +129,6 @@ export async function synthesize(prompt: string, drafts: WorkerResult[], history
       }),
     });
 
-    // If Gemini hits quota limit (429), gracefully fallback to Groq's draft instead of crashing!
     if (!res.ok) {
       console.warn("Gemini quota hit, falling back to Groq draft.");
       return usable[0].text;
@@ -143,7 +140,6 @@ export async function synthesize(prompt: string, drafts: WorkerResult[], history
     if (!text) return usable[0].text;
     return text;
   } catch (err) {
-    // If any network error happens with Gemini, fallback to Groq instantly
     return usable[0].text;
   }
 }
