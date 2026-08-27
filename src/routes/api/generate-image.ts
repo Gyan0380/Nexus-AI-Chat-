@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/generate-image")({
           const groqKey = process.env['GROQ_API_KEY'];
           
           if (!groqKey) {
-            return json({ error: "API Key missing for generation" }, 500);
+            return json({ error: "API Key missing! Vercel environment variables check karo." }, 500);
           }
 
           // Container dimensions based on type
@@ -64,8 +64,8 @@ export const Route = createFileRoute("/api/generate-image")({
           const systemPrompt = `You are a master web-based graphic designer. The user wants an esports banner, logo, or graphic.
           CRITICAL INSTRUCTIONS:
           1. Generate the design using ONLY raw HTML and inline CSS.
-          2. DO NOT wrap the output in markdown (\`\`\`html). Just output the raw code.
-          3. The outer root element MUST be exactly: <div style="${dimensions} position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: sans-serif; box-sizing: border-box; margin: 0; padding: 20px;">
+          2. DO NOT wrap the output in markdown (\`\`\`html). Just output the raw code starting with <div...
+          3. The outer root element MUST be exactly: <div style="${dimensions} position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: sans-serif; box-sizing: border-box; margin: 0; padding: 20px; background: #000;">
           4. Include rich background gradients, futuristic geometric shapes using absolute positioning, glowing text-shadows, and box-shadows.
           5. Import cool Google Fonts using an inline <style> block inside the div.
           6. The exact text requested by the user MUST be perfectly spelled and prominently displayed. Ensure high contrast.`;
@@ -74,17 +74,22 @@ export const Route = createFileRoute("/api/generate-image")({
             method: "POST",
             headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
             body: JSON.stringify({
-              model: "llama-3.1-70b-versatile",
+              model: "llama3-70b-8192", // Using the highly stable model
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: prompt }
               ],
               temperature: 0.6,
-              max_tokens: 1500
+              max_tokens: 2000
             })
           });
 
-          if (!res.ok) throw new Error("AI generation failed");
+          // ✅ CAPTURE EXACT ERROR FROM GROQ
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error("Groq Failed:", errorText);
+            throw new Error(`Groq API Error (${res.status}): ${errorText.substring(0, 100)}...`);
+          }
           
           const data = await res.json() as any;
           htmlCode = data.choices?.[0]?.message?.content?.trim() || "";
