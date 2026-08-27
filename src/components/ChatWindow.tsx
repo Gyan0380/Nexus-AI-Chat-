@@ -1,4 +1,4 @@
-import { ArrowUp, Bot, Loader2, Sparkles, User } from "lucide-react";
+import { ArrowUp, Bot, Loader2, Sparkles, User, Volume2, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [stage, setStage] = useState(0);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
@@ -35,6 +36,19 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     const id = setInterval(() => setStage((s) => (s + 1) % STAGES.length), 2600);
     return () => clearInterval(id);
   }, [sending]);
+
+  function toggleSpeech(messageId: string, text: string) {
+    if (speakingId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    window.speechSynthesis.cancel(); // Stop any current audio
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeakingId(null);
+    setSpeakingId(messageId);
+    window.speechSynthesis.speak(utterance);
+  }
 
   async function send() {
     const text = prompt.trim();
@@ -84,15 +98,32 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                   <Bot className="size-4" />
                 </span>
               ) : null}
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-card text-card-foreground"
-                }`}
-              >
-                {m.content}
-              </div>
+
+              {m.role === "assistant" ? (
+                <div className="flex flex-col gap-1 items-start max-w-[85%]">
+                  <div className="w-full rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap border border-border bg-card text-card-foreground">
+                    {m.content}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:bg-transparent hover:text-primary"
+                    onClick={() => toggleSpeech(m.id, m.content)}
+                  >
+                    {speakingId === m.id ? (
+                      <Square className="size-3 mr-1" />
+                    ) : (
+                      <Volume2 className="size-3 mr-1" />
+                    )}
+                    {speakingId === m.id ? "Stop" : "Read aloud"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-primary text-primary-foreground">
+                  {m.content}
+                </div>
+              )}
+
               {m.role === "user" ? (
                 <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
                   <User className="size-4" />
