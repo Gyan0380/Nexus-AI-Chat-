@@ -51,59 +51,23 @@ export const Route = createFileRoute("/api/generate-image")({
             return json({ error: `Requires ${IMAGE_COST} tokens. Not enough tokens!`, code: "NO_TOKENS" }, 429);
           }
 
-          let htmlCode = "";
-          // USING ALIBABA CLOUD API KEY
-          const alibabaKey = process.env['ALIBABA_API_KEY'];
+          let width = 1024;
+          let height = 1024;
+          if (aspectRatio === "banner") { width = 1280; height = 720; }
+          if (aspectRatio === "avatar") { width = 768; height = 768; }
+
+          const seed = Math.floor(Math.random() * 9999999);
           
-          if (!alibabaKey) {
-            return json({ error: "ALIBABA_API_KEY is missing! Vercel me add karo." }, 500);
-          }
-
-          const dimensions = aspectRatio === "banner" ? "width: 800px; height: 450px;" : "width: 500px; height: 500px;";
-
-          const systemPrompt = `You are a master web-based graphic designer. The user wants an esports banner, logo, or graphic.
-          CRITICAL INSTRUCTIONS:
-          1. Generate the design using ONLY raw HTML and inline CSS.
-          2. DO NOT wrap the output in markdown (\`\`\`html). Just output the raw code starting with <div...
-          3. The outer root element MUST be exactly: <div style="${dimensions} position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: sans-serif; box-sizing: border-box; margin: 0; padding: 20px; background: #0b0f19;">
-          4. Include rich background gradients, futuristic geometric shapes using absolute positioning, glowing text-shadows, and box-shadows.
-          5. Import cool Google Fonts using an inline <style> block inside the div.
-          6. The exact text requested by the user MUST be perfectly spelled and prominently displayed. Ensure high contrast.`;
-
-          // ALIBABA CLOUD OPENAI-COMPATIBLE API CALL
-          const res = await fetch("https://ws-pqfgvwfz9ooad5s9.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions", {
-            method: "POST",
-            headers: { 
-              "Authorization": `Bearer ${alibabaKey}`, 
-              "Content-Type": "application/json" 
-            },
-            body: JSON.stringify({
-              model: "qwen-plus", // Using Alibaba's smart coding model
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: prompt }
-              ],
-              temperature: 0.6,
-              max_tokens: 2000
-            })
-          });
-
-          if (!res.ok) {
-            const errorText = await res.text();
-            console.error("Alibaba Cloud Failed:", errorText);
-            throw new Error(`Alibaba API Error (${res.status}): ${errorText.substring(0, 100)}...`);
-          }
+          // Force epic gaming style in the background
+          const enhancedPrompt = `${prompt}, epic gaming esports style, highly detailed 3d render, cinematic lighting, 8k resolution`;
           
-          const data = await res.json() as any;
-          htmlCode = data.choices?.[0]?.message?.content?.trim() || "";
-          
-          // Clean up markdown formatting
-          htmlCode = htmlCode.replace(/```html/gi, "").replace(/```/g, "").trim();
+          // Using FLUX model which is incredible at drawing text and game characters!
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}&model=flux`;
 
           patch['tokens'] = tokens - IMAGE_COST;
           await updateDocument(`Users/${uid}`, patch);
 
-          return json({ htmlCode, tokensLeft: tokens - IMAGE_COST });
+          return json({ imageUrl, enhancedPrompt, tokensLeft: tokens - IMAGE_COST });
         } catch (error) {
           return json({ error: (error as Error).message || "Generation failed" }, 500);
         }
