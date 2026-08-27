@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Sparkles, Loader2, Download, Wand2, Code } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Loader2, Download, Image as ImageIcon, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,9 +10,7 @@ export function ImageGenerator() {
   const [prompt, setPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<"square" | "banner" | "avatar">("square");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ htmlCode: string } | null>(null);
-  
-  const designRef = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{ imageUrl: string; enhancedPrompt: string } | null>(null);
 
   async function handleGenerate() {
     const text = prompt.trim();
@@ -30,10 +28,13 @@ export function ImageGenerator() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
 
-      setResult({ htmlCode: data.htmlCode });
-      toast.success("Graphic code rendered successfully!");
+      setResult({
+        imageUrl: data.imageUrl,
+        enhancedPrompt: data.enhancedPrompt,
+      });
+      toast.success("Image generated successfully!");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -41,77 +42,17 @@ export function ImageGenerator() {
     }
   }
 
-  // Native Zero-Dependency HTML to Image Converter
-  async function downloadAsPhoto() {
-    if (!designRef.current || !designRef.current.firstElementChild) return;
-    
-    try {
-      const toastId = toast.loading("Converting design to photo...");
-      const node = designRef.current.firstElementChild as HTMLElement;
-      
-      const width = node.offsetWidth;
-      const height = node.offsetHeight;
-      const htmlContent = node.outerHTML;
-
-      // Wrap HTML inside an SVG to draw it natively on a Canvas
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-          <foreignObject width="100%" height="100%">
-            ${htmlContent.replace(/<img /g, "<img xmlns=\"http://www.w3.org/1999/xhtml\" ")}
-          </foreignObject>
-        </svg>
-      `;
-      
-      const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(svgBlob);
-      
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        // 2x scale for high resolution output
-        canvas.width = width * 2; 
-        canvas.height = height * 2;
-        const ctx = canvas.getContext("2d");
-        
-        if (ctx) {
-          ctx.scale(2, 2);
-          ctx.drawImage(img, 0, 0);
-          const pngUrl = canvas.toDataURL("image/png");
-          
-          const link = document.createElement("a");
-          link.download = `ai-design-${Date.now()}.png`;
-          link.href = pngUrl;
-          link.click();
-          
-          URL.revokeObjectURL(url);
-          toast.dismiss(toastId);
-          toast.success("Photo downloaded successfully!");
-        }
-      };
-      
-      img.onerror = () => {
-        toast.dismiss(toastId);
-        toast.error("Failed to render photo.");
-      };
-      
-      img.src = url;
-    } catch (err) {
-      toast.error("Failed to save photo.");
-    }
-  }
-
   return (
     <div className="flex h-screen min-w-0 flex-1 flex-col bg-background bg-mesh overflow-y-auto px-4 py-8">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
         
         <div className="text-center">
           <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary mb-3">
-            <Code className="size-6" />
+            <Wand2 className="size-6" />
           </span>
-          <h1 className="font-display text-2xl font-semibold">AI Code-to-Design Studio</h1>
+          <h1 className="font-display text-2xl font-semibold">AI Image Studio (FLUX)</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Generates flawless banners using code. Perfect text, perfect layouts.
+            Generates epic gaming banners with real graphics and text using FLUX AI.
           </p>
         </div>
 
@@ -136,18 +77,18 @@ export function ImageGenerator() {
 
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Describe your graphic layout
+            Describe your image
           </label>
           <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. Free Fire solo tournament banner, glowing neon blue background, bold white text..."
+            placeholder='e.g. A Free Fire gaming banner, character holding an assault rifle, fire in background, text says "SOLO TOURNAMENT"'
             className="min-h-24 resize-none border-none bg-transparent p-0 text-sm focus-visible:ring-0"
             disabled={loading}
           />
           <div className="flex items-center justify-between border-t border-border pt-3">
             <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Sparkles className="size-3 text-primary" /> Costs 4 tokens per generation
+              <Sparkles className="size-3 text-primary" /> Costs 4 tokens
             </span>
             <Button
               onClick={handleGenerate}
@@ -155,7 +96,7 @@ export function ImageGenerator() {
               className="rounded-xl px-5 py-2 text-xs font-medium"
             >
               {loading ? <Loader2 className="size-4 animate-spin mr-1.5" /> : <Wand2 className="size-4 mr-1.5" />}
-              {loading ? "Writing Design Code..." : "Generate Graphic"}
+              {loading ? "Generating Image..." : "Generate Graphic"}
             </Button>
           </div>
         </div>
@@ -163,7 +104,7 @@ export function ImageGenerator() {
         {loading && (
           <div className="flex flex-col items-center justify-center p-12 gap-3 rounded-2xl border border-border bg-card/50">
             <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">AI is writing HTML/CSS and rendering your design...</p>
+            <p className="text-xs text-muted-foreground">AI is drawing your image...</p>
           </div>
         )}
 
@@ -171,26 +112,29 @@ export function ImageGenerator() {
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Code className="size-3.5 text-primary" /> Live Code Render
+                <ImageIcon className="size-3.5 text-primary" /> Generated Image
               </span>
-              <Button
-                onClick={downloadAsPhoto}
-                className="inline-flex items-center gap-1 text-xs px-4 py-2 rounded-xl font-medium"
+              <a
+                href={result.imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                download="ai-graphic.png"
+                className="inline-flex items-center gap-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-xl font-medium transition-colors shadow-sm"
               >
-                <Download className="size-4 mr-1" /> Download as Photo (PNG)
-              </Button>
+                <Download className="size-4" /> Download Full Image
+              </a>
             </div>
 
-            {/* Live Visual Graphic Box */}
-            <div className="overflow-x-auto rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800 p-4">
-              <div 
-                ref={designRef} 
-                className="shadow-2xl flex-shrink-0"
-                dangerouslySetInnerHTML={{ __html: result.htmlCode }} 
+            <div className="overflow-hidden rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800 p-2">
+              <img
+                src={result.imageUrl}
+                alt={prompt}
+                className="max-h-[450px] w-auto object-contain rounded-lg transition-transform hover:scale-[1.01]"
               />
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
