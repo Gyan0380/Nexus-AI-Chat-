@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Loader2, Download, Image as ImageIcon, Wand2 } from "lucide-react";
+import { Sparkles, Loader2, Download, Image as ImageIcon, Wand2, Code } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +34,7 @@ export function ImageGenerator() {
         imageUrl: data.imageUrl,
         enhancedPrompt: data.enhancedPrompt,
       });
-      toast.success("Image generated successfully!");
+      toast.success("Graphic design generated successfully!");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -51,9 +51,9 @@ export function ImageGenerator() {
           <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-primary/15 text-primary mb-3">
             <Wand2 className="size-6" />
           </span>
-          <h1 className="font-display text-2xl font-semibold">AI Design Studio</h1>
+          <h1 className="font-display text-2xl font-semibold">AI Graphic & Banner Studio</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Generate custom logos, banners, and avatars. AI automatically clarifies your prompt for pro results.
+            AI processes your text layout into clean vector art and banners. No random images.
           </p>
         </div>
 
@@ -73,7 +73,7 @@ export function ImageGenerator() {
               aspectRatio === "banner" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Discord Banner (16:9)
+            Esports / FF Banner (16:9)
           </button>
           <button
             onClick={() => setAspectRatio("avatar")}
@@ -87,13 +87,16 @@ export function ImageGenerator() {
 
         {/* Prompt Input Box */}
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Describe what you want to create
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+            <span>Describe your graphic layout</span>
+            <span className="text-[10px] text-primary flex items-center gap-1">
+              <Code className="size-3" /> Auto-structured styling
+            </span>
           </label>
           <Textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. A futuristic gaming logo with a glowing dragon for Trade Kingdom..."
+            placeholder="e.g. Free Fire solo tournament banner, fire and neon blue design..."
             className="min-h-24 resize-none border-none bg-transparent p-0 text-sm focus-visible:ring-0"
             disabled={loading}
           />
@@ -107,7 +110,7 @@ export function ImageGenerator() {
               className="rounded-xl px-5 py-2 text-xs font-medium"
             >
               {loading ? <Loader2 className="size-4 animate-spin mr-1.5" /> : <Wand2 className="size-4 mr-1.5" />}
-              {loading ? "Enhancing & Generating..." : "Generate Design"}
+              {loading ? "Processing & Rendering..." : "Generate Graphic"}
             </Button>
           </div>
         </div>
@@ -116,39 +119,39 @@ export function ImageGenerator() {
         {loading && (
           <div className="flex flex-col items-center justify-center p-12 gap-3 rounded-2xl border border-border bg-card/50">
             <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">AI workers are clarifying your prompt and rendering graphics...</p>
+            <p className="text-xs text-muted-foreground">Processing design layout and generating clean graphic...</p>
           </div>
         )}
 
-        {/* Result Preview Box */}
+        {/* Result Preview Box with Direct Download Button */}
         {result && !loading && (
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <ImageIcon className="size-3.5 text-primary" /> Result
+                <ImageIcon className="size-3.5 text-primary" /> Clean Rendered Graphic
               </span>
               <a
                 href={result.imageUrl}
                 target="_blank"
                 rel="noreferrer"
-                download="ai-design.png"
-                className="inline-flex items-center gap-1 text-xs bg-secondary hover:bg-secondary/80 text-secondary-foreground px-3 py-1.5 rounded-lg font-medium transition-colors"
+                download="ai-graphic.png"
+                className="inline-flex items-center gap-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-xl font-medium transition-colors shadow-sm"
               >
-                <Download className="size-3.5" /> Download Full Image
+                <Download className="size-4" /> Download Graphic
               </a>
             </div>
 
-            <div className="overflow-hidden rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800">
+            <div className="overflow-hidden rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800 p-2">
               <img
                 src={result.imageUrl}
                 alt={prompt}
-                className="max-h-[400px] w-auto object-contain rounded-lg transition-transform hover:scale-[1.01]"
+                className="max-h-[450px] w-auto object-contain rounded-lg transition-transform hover:scale-[1.01]"
               />
             </div>
 
             <div className="rounded-xl bg-secondary/40 p-3">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
-                AI Enhanced Prompt Used:
+                Processed Design Prompt:
               </span>
               <p className="text-xs text-secondary-foreground font-mono italic">
                 "{result.enhancedPrompt}"
