@@ -23,7 +23,8 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const endRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null); // Added ref for auto-resize
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
@@ -42,13 +43,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     return () => clearInterval(id);
   }, [sending]);
 
-  // Auto-resize textarea when text changes
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [prompt]);
+  // Instant Auto-Resize
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+  };
 
   function toggleSpeech(messageId: string, text: string) {
     if (speakingId === messageId) {
@@ -69,9 +69,17 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  function stopGenerating() {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }
+
   async function send() {
     const text = prompt.trim();
     if (!text || sending) return;
+    
     setSending(true);
     setPrompt("");
     
@@ -80,20 +88,29 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       textareaRef.current.style.height = "auto";
     }
 
+    abortControllerRef.current = new AbortController();
+
     try {
       const token = await getIdToken();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ chatId, prompt: text }),
+        signal: abortControllerRef.current.signal, // Attach the abort signal
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
-    } catch (error) {
-      toast.error((error as Error).message);
-      setPrompt(text); // Put text back if failed
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        toast("Generation stopped.");
+        setPrompt(text); // Put text back if stopped
+      } else {
+        toast.error(error.message);
+        setPrompt(text); // Put text back if failed
+      }
     } finally {
       setSending(false);
+      abortControllerRef.current = null;
     }
   }
 
@@ -193,7 +210,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           <Textarea
             ref={textareaRef}
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={handleInput}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -206,12 +223,18 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             disabled={sending}
           />
           <Button
-            aria-label="Send message"
-            onClick={() => void send()}
-            disabled={sending || !prompt.trim()}
-            className="size-11 shrink-0 p-0 rounded-xl"
+            aria-label={sending ? "Stop generating" : "Send message"}
+            onClick={sending ? stopGenerating : () => void send()}
+            disabled={!sending && !prompt.trim()}
+            className={`size-11 shrink-0 p-0 rounded-xl transition-all ${
+              sending ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""
+            }`}
           >
-            {sending ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-5" />}
+            {sending ? (
+              <Square className="size-4 fill-current" />
+            ) : (
+              <ArrowUp className="size-5" />
+            )}
           </Button>
         </div>
         <p className="mt-2 text-center text-[10px] sm:text-xs text-muted-foreground">
