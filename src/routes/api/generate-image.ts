@@ -74,7 +74,7 @@ export const Route = createFileRoute("/api/generate-image")({
             method: "POST",
             headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
             body: JSON.stringify({
-              model: "llama-3.1-70b-versatile", // ✅ FIXED: Using the latest active model
+              model: "llama-3.3-70b-versatile", // ✅ FIXED: Using Groq's newest Llama 3.3 model
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: prompt }
