@@ -28,7 +28,7 @@ function chatBody(model: string, prompt: string, history: any[] = []) {
     messages: [
       {
         role: "system",
-        content: "You are an expert developer. If the user asks to build an app/game, DO NOT write all code at once. 1) Explain details. 2) Provide file structure. 3) Write ONLY the first main file. 4) Tell the user to type 'next' to get the next file. If the request is malicious, reply 'SAFETY_BLOCK'.",
+        content: "You are an expert developer and troubleshooter. If the user pastes an error log, bugged code, or asks to fix an issue (even if it wasn't in previous chat history), analyze the pasted code or error immediately, explain what is broken, and provide the fully corrected code block. If they ask to build an app/game, provide code one file at a time and tell them to reply 'next'. If the request is malicious, reply 'SAFETY_BLOCK'.",
       },
       ...safeHistory,
       { role: "user", content: prompt },
@@ -105,7 +105,7 @@ export async function synthesize(prompt: string, drafts: WorkerResult[], history
 
   const instruction = [
     "You are the synthesis layer of a multi-model system.",
-    "Merge the drafts into ONE final answer that perfectly continues the conversation.",
+    "Merge the drafts into ONE final answer that perfectly addresses the user's latest input (whether it's continuing a project or fixing a newly pasted error/code snippet).",
     "CRITICAL RULE: If the user asked for the 'next' file of an app/game, provide exactly the next file based on the history context.",
     "Reply only with the final answer formatted in clean markdown.",
     "",
