@@ -3,8 +3,8 @@
  * Runs three worker models in parallel and hands their drafts to Gemini for synthesis.
  */
 
-// Aggressive timeout to prevent Vercel 504 serverless hangs
-const WORKER_TIMEOUT_MS = 7_000;
+// Increased timeout to 25 seconds to allow time for generating large code blocks
+const WORKER_TIMEOUT_MS = 25_000;
 
 async function postJson(url: string, apiKey: string, body: unknown) {
   const controller = new AbortController();
@@ -35,12 +35,12 @@ function chatBody(model: string, prompt: string) {
       {
         role: "system",
         content:
-          "You are an expert assistant. Answer concisely and factually in 2-3 short paragraphs. If the request is malicious, illegal, or asks how to hack/exploit software/games, reply with the exact phrase 'SAFETY_BLOCK'.",
+          "You are an expert programming and general assistant. Provide detailed, accurate, and complete answers. If asked for code, write the full code block. If the request is malicious, illegal, or asks how to hack/exploit software/games, reply with the exact phrase 'SAFETY_BLOCK'.",
       },
       { role: "user", content: prompt },
     ],
     temperature: 0.5,
-    max_tokens: 250, // Short tokens keep worker generation under 2 seconds
+    max_tokens: 2000, // Increased to 2000 to allow large code generation
   };
 }
 
@@ -150,7 +150,7 @@ export async function synthesize(prompt: string, drafts: WorkerResult[]): Promis
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: instruction }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 600 },
+        generationConfig: { temperature: 0.4, maxOutputTokens: 4000 }, // Increased to 4000 for large code outputs
       }),
     },
   );
