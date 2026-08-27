@@ -24,7 +24,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllerRef = useRef<AbortController null |>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
@@ -102,8 +102,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
     try {
       const token = await getIdToken();
-      
-      // FIX: Send ALL prior messages so the AI retains complete context (memory fix)
       const history = messages.map(m => ({
         role: m.role,
         content: m.content
@@ -131,25 +129,29 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }
 
+  // Bulletproof code block and text parser
   function renderMessage(content: string, messageId: string) {
-    const parts = content.split(/(```[\s\S]*?```)/g);
+    // Regex splits by ```lang ... ``` blocks safely
+    const parts = content.split(/(```[\w]*\n[\s\S]*?```)/g);
+
     return parts.map((part, index) => {
-      if (part.startsWith("```") && part.endsWith("```")) {
-        const lines = part.slice(3, -3).split("\n");
-        const language = lines[0].trim();
-        const code = lines.slice(1).join("\n");
+      const trimmed = part.trim();
+      if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
+        const firstNewline = trimmed.indexOf("\n");
+        const language = trimmed.slice(3, firstNewline).trim();
+        const code = trimmed.slice(firstNewline + 1, -3).trim();
         const blockId = `${messageId}-code-${index}`;
 
         return (
           <div key={index} className="my-3 overflow-hidden rounded-md bg-zinc-950 border border-zinc-800 w-full">
             <div className="flex items-center justify-between bg-zinc-900 px-4 py-2 text-xs text-zinc-400 font-mono">
-              <span>{language || "code"}</span>
+              <span className="uppercase">{language || "code"}</span>
               <button
                 onClick={() => copyToClipboard(blockId, code)}
-                className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors"
+                className="flex items-center gap-1.5 hover:text-zinc-200 transition-colors bg-zinc-800/60 px-2.5 py-1 rounded border border-zinc-700/50"
               >
-                {copiedId === blockId ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-                {copiedId === blockId ? <span className="text-green-500">Copied!</span> : "Copy code"}
+                {copiedId === blockId ? <Check className="size-3.5 text-green-400" /> : <Copy className="size-3.5" />}
+                {copiedId === blockId ? <span className="text-green-400 font-medium">Copied!</span> : "Copy Code"}
               </button>
             </div>
             <pre className="overflow-x-auto p-4 text-[13px] text-zinc-50 leading-relaxed font-mono">
@@ -158,7 +160,16 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </div>
         );
       }
-      return <span key={index} className="block whitespace-pre-wrap">{part}</span>;
+
+      if (!part) return null;
+
+      // Regular text block with individual copy text button option if needed
+      const textBlockId = `${messageId}-text-${index}`;
+      return (
+        <div key={index} className="relative group my-1">
+          <span className="whitespace-pre-wrap block leading-relaxed">{part}</span>
+        </div>
+      );
     });
   }
 
@@ -221,7 +232,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                         ) : (
                           <Copy className="size-3.5 mr-1.5" />
                         )}
-                        {copiedId === m.id ? "Copied" : "Copy Message"}
+                        {copiedId === m.id ? "Copied" : "Copy Full Answer"}
                       </Button>
                       
                       {isLatest && hasNextPrompt && !sending && (
