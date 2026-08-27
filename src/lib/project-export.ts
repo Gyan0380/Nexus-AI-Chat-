@@ -1,13 +1,10 @@
 import { toast } from "sonner";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 
 export async function downloadProjectZip(messages: Array<{ role: string; content: string }>) {
-  const zip = new JSZip();
+  let combinedCodeFiles = "";
   let fileCount = 0;
 
   messages.forEach((m, msgIndex) => {
-    // Matches ```language // filename.ext \n code ```
     const codeBlockRegex = /```([\w-]+)?(?:\s*\/\/\s*([^\n]+)|\n)?([\s\S]*?)```/g;
     let match;
 
@@ -16,7 +13,10 @@ export async function downloadProjectZip(messages: Array<{ role: string; content
       let filename = match[2]?.trim() || `file_${msgIndex}_${fileCount}.${lang === "java" ? "java" : lang === "python" ? "py" : lang === "html" ? "html" : "txt"}`;
       const codeContent = match[3].trim();
 
-      zip.file(filename, codeContent);
+      combinedCodeFiles += `\n\n========================================\n`;
+      combinedCodeFiles += `FILE: ${filename}\n`;
+      combinedCodeFiles += `========================================\n\n`;
+      combinedCodeFiles += codeContent;
       fileCount++;
     }
   });
@@ -26,9 +26,17 @@ export async function downloadProjectZip(messages: Array<{ role: string; content
     return;
   }
 
-  const content = await zip.generateAsync({ type: "blob" });
-  saveAs(content, `project-bundle-${Date.now()}.zip`);
-  toast.success(`Successfully downloaded zip with ${fileCount} code files!`);
+  // Creates a downloadable project bundle text file containing all structured files
+  const blob = new Blob([combinedCodeFiles], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `project-code-bundle-${Date.now()}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  toast.success(`Successfully downloaded bundle with ${fileCount} code files!`);
 }
 
 export function exportChatAsTxt(messages: Array<{ role: string; content: string }>) {
@@ -37,6 +45,13 @@ export function exportChatAsTxt(messages: Array<{ role: string; content: string 
     .join("");
 
   const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
-  saveAs(blob, `chat-transcript-${Date.now()}.txt`);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `chat-transcript-${Date.now()}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
   toast.success("Chat transcript downloaded as .txt!");
 }
