@@ -8,6 +8,7 @@ const BodySchema = z.object({
     role: z.string(),
     content: z.string()
   })).optional().default([]),
+  mode: z.string().optional().default("chat"), // "chat" or "zip-builder"
 });
 
 const FREE_DAILY_TOKENS = 10;
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const parsed = BodySchema.safeParse(await request.json().catch(() => null));
         if (!parsed.success) return json({ error: "Invalid request body" }, 400);
-        const { chatId, prompt, history } = parsed.data;
+        const { chatId, prompt, history, mode } = parsed.data;
 
         try {
           const chat = await getDocument(`Chats/${chatId}`);
@@ -63,9 +64,11 @@ export const Route = createFileRoute("/api/chat")({
             patch['last_free_reset'] = today;
           }
 
-          if (tokens <= 0) {
-            if (Object.keys(patch).length) await updateDocument(`Users/${uid}`, patch);
-            return json({ error: plan === "premium" ? "You are out of tokens." : "Daily tokens exhausted.", code: "NO_TOKENS", tokens: 0 }, 429);
+          // If zip builder mode is active, charge 2 extra tokens (+ base cost)
+          const baseCost = mode === "zip-builder" ? 3 : 1;
+
+          if (tokens < baseCost) {
+            return json({ error: "Not enough tokens! Zip builder requires 3 tokens.", code: "NO_TOKENS" }, 429);
           }
 
           const now = new Date();
@@ -76,15 +79,10 @@ export const Route = createFileRoute("/api/chat")({
             ts: now.getTime(),
           });
 
-          // Run workers with full conversation memory
           const drafts = await runWorkers(prompt, history);
           const answer = await synthesize(prompt, drafts, history);
 
-          let tokenCost = 1;
-          if (answer.length > 1500) tokenCost = 2;
-          if (answer.length > 3500) tokenCost = 3;
-
-          patch['tokens'] = tokens - tokenCost;
+          patch['tokens'] = tokens - baseCost;
           await updateDocument(`Users/${uid}`, patch);
 
           const answeredAt = new Date();
@@ -95,7 +93,7 @@ export const Route = createFileRoute("/api/chat")({
             ts: answeredAt.getTime(),
           });
 
-          return json({ answer, tokens: tokens - tokenCost, plan, tokensUsed: tokenCost });
+          return json({ answer, tokens: tokens - baseCost, plan, tokensUsed: baseCost });
         } catch (error) {
           console.error("[api/chat]", error);
           return json({ error: (error as Error).message || "Chat failed" }, 500);
