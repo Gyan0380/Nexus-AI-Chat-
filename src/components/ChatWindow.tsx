@@ -24,7 +24,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null); // Fixed type syntax here
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
@@ -41,36 +41,58 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     return () => clearInterval(id);
   }, [sending]);
 
+  // Clean up speech synthesis on component unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPrompt(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = `${e.target.scrollHeight}px`;
   };
 
+  // Modern natural speech configuration matching ChatGPT audio behavior
   function toggleSpeech(messageId: string, text: string) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
     if (speakingId === messageId) {
       window.speechSynthesis.cancel();
       setSpeakingId(null);
       return;
     }
+
     window.speechSynthesis.cancel(); 
     
-    const cleanText = text.replace(/```[\s\S]*?```/g, " [Code block omitted from audio] ").replace(/[#*`]/g, "");
+    // Strip code block contents and heavy punctuation for smooth narration
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, " Code block omitted. ")
+      .replace(/[*_#`[\]()]/g, " ");
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
+    // Select high quality neural or enhanced voices if present
     const voices = window.speechSynthesis.getVoices();
-    const betterVoice = voices.find(v => 
-      v.name.includes("Google UK English") || 
-      v.name.includes("Google US English") || 
-      v.name.includes("Samantha")
-    );
-    if (betterVoice) utterance.voice = betterVoice;
-    
-    utterance.rate = 1.05;
-    utterance.pitch = 1.1;
+    const naturalVoice = voices.find(v => 
+      (v.name.includes("Natural") || v.name.includes("Neural") || v.name.includes("Google") || v.name.includes("Samantha")) &&
+      v.lang.startsWith("en")
+    ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
 
+    if (naturalVoice) {
+      utterance.voice = naturalVoice;
+    }
+    
+    utterance.rate = 1.0; 
+    utterance.pitch = 1.0;
+
+    utterance.onstart = () => setSpeakingId(messageId);
     utterance.onend = () => setSpeakingId(null);
-    setSpeakingId(messageId);
+    utterance.onerror = () => setSpeakingId(null);
+
     window.speechSynthesis.speak(utterance);
   }
 
@@ -188,6 +210,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           {messages.map((m, index) => {
             const isLatest = index === messages.length - 1;
             const hasNextPrompt = m.content.toLowerCase().includes("next") || m.content.toLowerCase().includes("file");
+            const isSpeaking = speakingId === m.id;
 
             return (
               <div key={m.id} className={`flex gap-3 w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -210,12 +233,12 @@ export function ChatWindow({ chatId }: { chatId: string }) {
                         className="h-7 px-2.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg"
                         onClick={() => toggleSpeech(m.id, m.content)}
                       >
-                        {speakingId === m.id ? (
-                          <Square className="size-3.5 mr-1.5" />
+                        {isSpeaking ? (
+                          <Square className="size-3.5 mr-1.5 text-destructive animate-pulse" />
                         ) : (
                           <Volume2 className="size-3.5 mr-1.5" />
                         )}
-                        {speakingId === m.id ? "Stop" : "Read aloud"}
+                        {isSpeaking ? "Stop Audio" : "Read aloud"}
                       </Button>
                       <Button
                         variant="ghost"
