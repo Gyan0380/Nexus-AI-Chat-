@@ -74,7 +74,7 @@ export const Route = createFileRoute("/api/generate-image")({
             method: "POST",
             headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
             body: JSON.stringify({
-              model: "llama3-70b-8192", // Using the highly stable model
+              model: "llama-3.1-70b-versatile", // ✅ FIXED: Using the latest active model
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: prompt }
@@ -84,7 +84,6 @@ export const Route = createFileRoute("/api/generate-image")({
             })
           });
 
-          // ✅ CAPTURE EXACT ERROR FROM GROQ
           if (!res.ok) {
             const errorText = await res.text();
             console.error("Groq Failed:", errorText);
