@@ -1,4 +1,4 @@
-import { ArrowUp, Bot, Loader2, Sparkles, User, Volume2, Square, Copy, Check, ChevronRight, Download, Share2, FolderZip, Image as ImageIcon } from "lucide-react";
+import { ArrowUp, Bot, Loader2, Sparkles, User, Volume2, Square, Copy, Check, ChevronRight, Download, Share2, FileArchive, Image as ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -7,7 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { subscribeMessages, type MessageDoc } from "@/lib/chat";
 import { downloadProjectZip, exportChatAsTxt } from "@/lib/project-export";
-import { ImageGenerator } from "@/components/ImageGenerator"; // Your photo generator component
+import { ImageGenerator } from "@/components/ImageGenerator";
+
+const STAGES = [
+  "Consulting three models in parallel…",
+  "Comparing and cross-checking drafts…",
+  "Synthesizing the final answer…",
+];
 
 export function ChatWindow({ chatId }: { chatId: string }) {
   const { getIdToken } = useAuth();
@@ -89,7 +95,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }
 
-  // If user selected Photo Generator mode from dropdown
   if (appMode === "photo-gen") {
     return (
       <div className="flex flex-col h-screen flex-1">
@@ -112,7 +117,6 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
   return (
     <div className="flex h-screen min-w-0 flex-1 flex-col bg-background bg-mesh">
-      {/* Top Bar with Mode Switcher & Export Controls */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60 backdrop-blur">
         <div className="flex items-center gap-2">
           <select 
@@ -139,7 +143,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             <Download className="size-3.5" /> Export .txt
           </Button>
           <Button variant="default" size="sm" onClick={() => downloadProjectZip(messages)} className="h-7 text-xs gap-1.5 bg-primary text-primary-foreground">
-            <FolderZip className="size-3.5" /> Download Zip
+            <FileArchive className="size-3.5" /> Download Zip
           </Button>
         </div>
       </div>
