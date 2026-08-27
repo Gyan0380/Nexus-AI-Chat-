@@ -98,8 +98,17 @@ export const Route = createFileRoute("/api/chat")({
           const drafts = await runWorkers(prompt);
           const answer = await synthesize(prompt, drafts);
 
-          // 7. Deduct one token and store the finalized answer.
-          patch['tokens'] = tokens - 1;
+          // Calculate dynamic token cost based on length (work done)
+          let tokenCost = 1; // Default for short answers
+          if (answer.length > 1500) {
+            tokenCost = 2; // Medium work (e.g., standard code snippets)
+          }
+          if (answer.length > 3500) {
+            tokenCost = 3; // Big work (e.g., massive files)
+          }
+
+          // 7. Deduct the dynamic tokens and store the finalized answer.
+          patch['tokens'] = tokens - tokenCost;
           await updateDocument(`Users/${uid}`, patch);
 
           const answeredAt = new Date();
@@ -110,8 +119,8 @@ export const Route = createFileRoute("/api/chat")({
             ts: answeredAt.getTime(),
           });
 
-          // Return ONLY the synthesized answer (plus balance for the UI).
-          return json({ answer, tokens: tokens - 1, plan });
+          // Return ONLY the synthesized answer, plus balance and cost for the UI.
+          return json({ answer, tokens: tokens - tokenCost, plan, tokensUsed: tokenCost });
         } catch (error) {
           console.error("[api/chat]", error);
           return json({ error: (error as Error).message || "Chat failed" }, 500);
