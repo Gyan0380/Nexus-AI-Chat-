@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { Sparkles, Loader2, Download, Wand2, Code } from "lucide-react";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
@@ -42,25 +41,61 @@ export function ImageGenerator() {
     }
   }
 
-  // Convert the rendered HTML block into a downloadable PNG photo
+  // Native Zero-Dependency HTML to Image Converter
   async function downloadAsPhoto() {
-    if (!designRef.current) return;
+    if (!designRef.current || !designRef.current.firstElementChild) return;
     
     try {
       const toastId = toast.loading("Converting design to photo...");
-      const canvas = await html2canvas(designRef.current, {
-        useCORS: true,
-        scale: 2, // High resolution
-        backgroundColor: null
-      });
+      const node = designRef.current.firstElementChild as HTMLElement;
       
-      const link = document.createElement("a");
-      link.download = `ai-design-${Date.now()}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
+      const htmlContent = node.outerHTML;
+
+      // Wrap HTML inside an SVG to draw it natively on a Canvas
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+          <foreignObject width="100%" height="100%">
+            ${htmlContent.replace(/<img /g, "<img xmlns=\"http://www.w3.org/1999/xhtml\" ")}
+          </foreignObject>
+        </svg>
+      `;
       
-      toast.dismiss(toastId);
-      toast.success("Photo downloaded successfully!");
+      const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // 2x scale for high resolution output
+        canvas.width = width * 2; 
+        canvas.height = height * 2;
+        const ctx = canvas.getContext("2d");
+        
+        if (ctx) {
+          ctx.scale(2, 2);
+          ctx.drawImage(img, 0, 0);
+          const pngUrl = canvas.toDataURL("image/png");
+          
+          const link = document.createElement("a");
+          link.download = `ai-design-${Date.now()}.png`;
+          link.href = pngUrl;
+          link.click();
+          
+          URL.revokeObjectURL(url);
+          toast.dismiss(toastId);
+          toast.success("Photo downloaded successfully!");
+        }
+      };
+      
+      img.onerror = () => {
+        toast.dismiss(toastId);
+        toast.error("Failed to render photo.");
+      };
+      
+      img.src = url;
     } catch (err) {
       toast.error("Failed to save photo.");
     }
@@ -146,7 +181,7 @@ export function ImageGenerator() {
               </Button>
             </div>
 
-            {/* This is where the magic happens! The raw code is rendered as a visual graphic */}
+            {/* Live Visual Graphic Box */}
             <div className="overflow-x-auto rounded-xl bg-zinc-950 flex items-center justify-center border border-zinc-800 p-4">
               <div 
                 ref={designRef} 
