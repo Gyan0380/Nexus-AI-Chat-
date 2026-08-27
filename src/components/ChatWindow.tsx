@@ -55,9 +55,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
     window.speechSynthesis.cancel(); 
     
-    // Clean markdown symbols before reading
     const cleanText = text.replace(/```[\s\S]*?```/g, " [Code block omitted from audio] ").replace(/[#*`]/g, "");
-    
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
     const voices = window.speechSynthesis.getVoices();
@@ -104,10 +102,17 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
     try {
       const token = await getIdToken();
+      
+      // FIX: Send ALL prior messages so the AI retains complete context (memory fix)
+      const history = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ chatId, prompt: text }),
+        body: JSON.stringify({ chatId, prompt: text, history }),
         signal: abortControllerRef.current.signal,
       });
       const data = (await res.json()) as { error?: string };
@@ -133,7 +138,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         const lines = part.slice(3, -3).split("\n");
         const language = lines[0].trim();
         const code = lines.slice(1).join("\n");
-        const blockId = `${messageId}-code-${index}`; // Unique ID for this specific code block
+        const blockId = `${messageId}-code-${index}`;
 
         return (
           <div key={index} className="my-3 overflow-hidden rounded-md bg-zinc-950 border border-zinc-800 w-full">
@@ -153,7 +158,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
           </div>
         );
       }
-      return <span key={index}>{part}</span>;
+      return <span key={index} className="block whitespace-pre-wrap">{part}</span>;
     });
   }
 
@@ -175,7 +180,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
           {messages.map((m, index) => {
             const isLatest = index === messages.length - 1;
-            const hasNextPrompt = m.content.toLowerCase().includes("next");
+            const hasNextPrompt = m.content.toLowerCase().includes("next") || m.content.toLowerCase().includes("file");
 
             return (
               <div key={m.id} className={`flex gap-3 w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -187,7 +192,7 @@ export function ChatWindow({ chatId }: { chatId: string }) {
 
                 {m.role === "assistant" ? (
                   <div className="flex flex-col gap-2 items-start max-w-[100%] sm:max-w-[85%] min-w-0 w-full">
-                    <div className="w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap border border-border bg-card text-card-foreground shadow-sm">
+                    <div className="w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed border border-border bg-card text-card-foreground shadow-sm">
                       {renderMessage(m.content, m.id)}
                     </div>
                     
