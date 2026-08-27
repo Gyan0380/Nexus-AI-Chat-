@@ -74,7 +74,7 @@ export const Route = createFileRoute("/api/generate-image")({
             method: "POST",
             headers: { authorization: `Bearer ${groqKey}`, "content-type": "application/json" },
             body: JSON.stringify({
-              model: "mixtral-8x7b-32768", // ✅ FIXED: Using the most rock-solid and stable model on Groq
+              model: "llama-3.1-8b-instant", // ✅ FIXED: Using Groq's most permissive, always-active free tier model
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: prompt }
