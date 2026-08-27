@@ -1,4 +1,4 @@
-import { ArrowUp, Bot, Loader2, Sparkles, User, Volume2, Square, Copy, Check } from "lucide-react";
+import { ArrowUp, Bot, Loader2, Sparkles, User, Volume2, Square, Copy, Check, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,16 +24,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
   
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllerRef = useRef<AbortController null |>(null);
 
   useEffect(() => subscribeMessages(chatId, setMessages), [chatId]);
 
-  // Scroll to bottom on new message
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
-  // Loading stages timer
   useEffect(() => {
     if (!sending) {
       setStage(0);
@@ -43,13 +41,13 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     return () => clearInterval(id);
   }, [sending]);
 
-  // Instant Auto-Resize
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPrompt(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = `${e.target.scrollHeight}px`;
   };
 
+  // Improved Speech Function with Better Voices
   function toggleSpeech(messageId: string, text: string) {
     if (speakingId === messageId) {
       window.speechSynthesis.cancel();
@@ -57,7 +55,24 @@ export function ChatWindow({ chatId }: { chatId: string }) {
       return;
     }
     window.speechSynthesis.cancel(); 
-    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Clean markdown symbols before reading
+    const cleanText = text.replace(/```[\s\S]*?```/g, " [Code block omitted from audio] ").replace(/[#*`]/g, "");
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Try to find a better, more natural voice
+    const voices = window.speechSynthesis.getVoices();
+    const betterVoice = voices.find(v => 
+      v.name.includes("Google UK English") || 
+      v.name.includes("Google US English") || 
+      v.name.includes("Samantha")
+    );
+    if (betterVoice) utterance.voice = betterVoice;
+    
+    utterance.rate = 1.05; // Slightly faster
+    utterance.pitch = 1.1; // Slightly higher pitch for less robotic tone
+
     utterance.onend = () => setSpeakingId(null);
     setSpeakingId(messageId);
     window.speechSynthesis.speak(utterance);
@@ -76,15 +91,14 @@ export function ChatWindow({ chatId }: { chatId: string }) {
     }
   }
 
-  async function send() {
-    const text = prompt.trim();
+  async function send(overrideText?: string) {
+    const text = (overrideText || prompt).trim();
     if (!text || sending) return;
     
     setSending(true);
-    setPrompt("");
+    if (!overrideText) setPrompt("");
     
-    // Reset textarea height immediately upon sending
-    if (textareaRef.current) {
+    if (textareaRef.current && !overrideText) {
       textareaRef.current.style.height = "auto";
     }
 
@@ -96,22 +110,45 @@ export function ChatWindow({ chatId }: { chatId: string }) {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ chatId, prompt: text }),
-        signal: abortControllerRef.current.signal, // Attach the abort signal
+        signal: abortControllerRef.current.signal,
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
     } catch (error: any) {
       if (error.name === "AbortError") {
         toast("Generation stopped.");
-        setPrompt(text); // Put text back if stopped
+        if (!overrideText) setPrompt(text);
       } else {
         toast.error(error.message);
-        setPrompt(text); // Put text back if failed
+        if (!overrideText) setPrompt(text);
       }
     } finally {
       setSending(false);
       abortControllerRef.current = null;
     }
+  }
+
+  // Parses markdown and creates beautiful code boxes
+  function renderMessage(content: string) {
+    const parts = content.split(/(```[\s\S]*?```)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith("```") && part.endsWith("```")) {
+        const lines = part.slice(3, -3).split("\n");
+        const language = lines[0].trim();
+        const code = lines.slice(1).join("\n");
+        return (
+          <div key={index} className="my-3 overflow-hidden rounded-md bg-zinc-950 border border-zinc-800 w-full">
+            <div className="flex items-center justify-between bg-zinc-900 px-4 py-1.5 text-xs text-zinc-400 font-mono">
+              <span>{language || "code"}</span>
+            </div>
+            <pre className="overflow-x-auto p-4 text-[13px] text-zinc-50 leading-relaxed font-mono">
+              <code>{code}</code>
+            </pre>
+          </div>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
   }
 
   return (
@@ -130,71 +167,85 @@ export function ChatWindow({ chatId }: { chatId: string }) {
             </div>
           ) : null}
 
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={`flex gap-3 w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {m.role === "assistant" ? (
-                <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary hidden sm:flex">
-                  <Bot className="size-4" />
-                </span>
-              ) : null}
+          {messages.map((m, index) => {
+            const isLatest = index === messages.length - 1;
+            const hasNextPrompt = m.content.toLowerCase().includes("next");
 
-              {m.role === "assistant" ? (
-                <div className="flex flex-col gap-1 items-start max-w-[90%] sm:max-w-[85%] min-w-0">
-                  <div className="w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap border border-border bg-card text-card-foreground">
+            return (
+              <div key={m.id} className={`flex gap-3 w-full ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                {m.role === "assistant" ? (
+                  <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary hidden sm:flex">
+                    <Bot className="size-4" />
+                  </span>
+                ) : null}
+
+                {m.role === "assistant" ? (
+                  <div className="flex flex-col gap-2 items-start max-w-[100%] sm:max-w-[85%] min-w-0 w-full">
+                    <div className="w-full overflow-x-auto rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap border border-border bg-card text-card-foreground shadow-sm">
+                      {renderMessage(m.content)}
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg"
+                        onClick={() => toggleSpeech(m.id, m.content)}
+                      >
+                        {speakingId === m.id ? (
+                          <Square className="size-3.5 mr-1.5" />
+                        ) : (
+                          <Volume2 className="size-3.5 mr-1.5" />
+                        )}
+                        {speakingId === m.id ? "Stop" : "Read aloud"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg"
+                        onClick={() => copyToClipboard(m.id, m.content)}
+                      >
+                        {copiedId === m.id ? (
+                          <Check className="size-3.5 mr-1.5 text-green-500" />
+                        ) : (
+                          <Copy className="size-3.5 mr-1.5" />
+                        )}
+                        {copiedId === m.id ? "Copied" : "Copy"}
+                      </Button>
+                      
+                      {/* Smart Next Button */}
+                      {isLatest && hasNextPrompt && !sending && (
+                        <Button 
+                          onClick={() => send("Next")}
+                          size="sm"
+                          className="h-7 px-3 text-xs bg-primary/20 text-primary hover:bg-primary/30 rounded-lg ml-auto border border-primary/20"
+                        >
+                          Next File <ChevronRight className="size-3.5 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-[90%] sm:max-w-[85%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-primary text-primary-foreground shadow-sm">
                     {m.content}
                   </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground hover:bg-transparent hover:text-primary"
-                      onClick={() => toggleSpeech(m.id, m.content)}
-                    >
-                      {speakingId === m.id ? (
-                        <Square className="size-3 mr-1" />
-                      ) : (
-                        <Volume2 className="size-3 mr-1" />
-                      )}
-                      {speakingId === m.id ? "Stop" : "Read aloud"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground hover:bg-transparent hover:text-primary"
-                      onClick={() => copyToClipboard(m.id, m.content)}
-                    >
-                      {copiedId === m.id ? (
-                        <Check className="size-3 mr-1 text-green-500" />
-                      ) : (
-                        <Copy className="size-3 mr-1" />
-                      )}
-                      {copiedId === m.id ? "Copied" : "Copy"}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-[90%] sm:max-w-[85%] break-words rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-primary text-primary-foreground">
-                  {m.content}
-                </div>
-              )}
+                )}
 
-              {m.role === "user" ? (
-                <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground hidden sm:flex">
-                  <User className="size-4" />
-                </span>
-              ) : null}
-            </div>
-          ))}
+                {m.role === "user" ? (
+                  <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground hidden sm:flex">
+                    <User className="size-4" />
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
 
           {sending ? (
             <div className="flex gap-3 w-full">
               <span className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary hidden sm:flex">
                 <Bot className="size-4" />
               </span>
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground max-w-[90%]">
+              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground max-w-[90%] shadow-sm">
                 <Loader2 className="size-4 animate-spin text-primary shrink-0" />
                 <span className="truncate">{STAGES[stage]}</span>
               </div>
