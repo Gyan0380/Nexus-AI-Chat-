@@ -51,23 +51,53 @@ export const Route = createFileRoute("/api/generate-image")({
             return json({ error: `Requires ${IMAGE_COST} tokens. Not enough tokens!`, code: "NO_TOKENS" }, 429);
           }
 
+          // STEP 1: THE CHATGPT SECRET - USE GEMINI TO EXPAND THE PROMPT FIRST
+          const geminiKey = process.env['GEMINI_API_KEY'];
+          let megaPrompt = prompt;
+
+          if (geminiKey) {
+            const systemInstruction = `You are a master AI image prompt engineer. The user will give you a simple idea for an esports gaming poster (like Free Fire). 
+            Your job is to expand it into a highly detailed visual prompt for the FLUX image model.
+            CRITICAL: 
+            - Describe a highly detailed 3D gaming character (anime/realistic blend) holding a weapon on the left side.
+            - Describe a dynamic background: fire, embers, neon lights.
+            - Explicitly command the AI to draw typography. Include phrases like "FREE FIRE", "SOLO TOURNAMENT", "REGISTER NOW", and add UI elements like prize pool boxes.
+            - Specify a structured graphic design layout.
+            Output ONLY the final expanded image generation prompt, nothing else.`;
+
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.7, maxOutputTokens: 250 }
+              })
+            });
+
+            if (res.ok) {
+              const data = await res.json() as any;
+              const generated = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+              if (generated) megaPrompt = generated;
+            }
+          }
+
+          // STEP 2: SEND THE MEGA PROMPT TO FLUX IMAGE ENGINE
           let width = 1024;
           let height = 1024;
-          if (aspectRatio === "banner") { width = 1280; height = 720; }
+          
+          // Changing banner to a slightly taller portrait size for better poster layouts
+          if (aspectRatio === "banner") { width = 1024; height = 1280; } 
           if (aspectRatio === "avatar") { width = 768; height = 768; }
 
           const seed = Math.floor(Math.random() * 9999999);
-          
-          // Force epic gaming style in the background
-          const enhancedPrompt = `${prompt}, epic gaming esports style, highly detailed 3d render, cinematic lighting, 8k resolution`;
-          
-          // Using FLUX model which is incredible at drawing text and game characters!
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}&model=flux`;
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(megaPrompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}&model=flux`;
 
           patch['tokens'] = tokens - IMAGE_COST;
           await updateDocument(`Users/${uid}`, patch);
 
-          return json({ imageUrl, enhancedPrompt, tokensLeft: tokens - IMAGE_COST });
+          // We return both the final image and the text Gemini generated so you can see the "secret rewrite"
+          return json({ imageUrl, enhancedPrompt: megaPrompt, tokensLeft: tokens - IMAGE_COST });
         } catch (error) {
           return json({ error: (error as Error).message || "Generation failed" }, 500);
         }
