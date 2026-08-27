@@ -26,7 +26,6 @@ export async function downloadProjectZip(messages: Array<{ role: string; content
     return;
   }
 
-  // Creates a downloadable project bundle text file containing all structured files
   const blob = new Blob([combinedCodeFiles], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
