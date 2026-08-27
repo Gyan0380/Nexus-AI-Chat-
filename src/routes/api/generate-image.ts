@@ -6,7 +6,7 @@ const BodySchema = z.object({
   aspectRatio: z.enum(["square", "banner", "avatar"]).optional().default("square"),
 });
 
-const IMAGE_COST = 4; // Cost in tokens
+const IMAGE_COST = 4;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -33,7 +33,6 @@ export const Route = createFileRoute("/api/generate-image")({
         const { prompt, aspectRatio } = parsed.data;
 
         try {
-          // Token balance checks
           const profile = await getDocument(`Users/${uid}`);
           if (!profile) return json({ error: "User profile missing" }, 404);
 
@@ -49,10 +48,9 @@ export const Route = createFileRoute("/api/generate-image")({
           }
 
           if (tokens < IMAGE_COST) {
-            return json({ error: `Image generation requires ${IMAGE_COST} tokens. You don't have enough tokens!`, code: "NO_TOKENS" }, 429);
+            return json({ error: `Image generation requires ${IMAGE_COST} tokens. Not enough tokens!`, code: "NO_TOKENS" }, 429);
           }
 
-          // 1. Clarify/Enhance prompt using Groq (or fallback to original)
           let enhancedPrompt = prompt;
           try {
             const groqKey = process.env['GROQ_API_KEY'];
@@ -63,7 +61,7 @@ export const Route = createFileRoute("/api/generate-image")({
                 body: JSON.stringify({
                   model: "llama-3.1-70b-versatile",
                   messages: [
-                    { role: "system", content: "You are an expert prompt engineer for AI image generators. Take the user's basic idea and rewrite it into a stunning, highly detailed visual prompt optimized for high-end graphic design, logos, or banners. Output ONLY the final image prompt text without any extra chat." },
+                    { role: "system", content: "You are an expert prompt engineer. Take the user's idea and rewrite it into a vivid, high-resolution graphic design prompt for esports banners or logos. Output ONLY the final prompt text." },
                     { role: "user", content: prompt }
                   ],
                   temperature: 0.7,
@@ -76,20 +74,16 @@ export const Route = createFileRoute("/api/generate-image")({
               }
             }
           } catch (e) {
-            console.warn("Prompt enhancement skipped, using raw prompt.");
+            console.warn("Prompt enhancement skipped.");
           }
 
-          // 2. Generate Image URL (Using Pollinations.ai free high-speed generation endpoint)
-          // Width & Height based on aspect ratio
-          let width = 1024;
-          let height = 1024;
-          if (aspectRatio === "banner") { width = 1280; height = 720; }
-          if (aspectRatio === "avatar") { width = 768; height = 768; }
+          // Use direct stable image generation source
+          const seed = Math.floor(Math.random() * 999999);
+          let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+          if (aspectRatio === "banner") {
+            imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=1280&height=720&nologo=true&seed=${seed}`;
+          }
 
-          const encodedPrompt = encodeURIComponent(enhancedPrompt);
-          const imageUrl = `https://pollinations.ai/p/${encodedPrompt}?width=${width}&height=${height}&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
-
-          // Deduct tokens
           patch['tokens'] = tokens - IMAGE_COST;
           await updateDocument(`Users/${uid}`, patch);
 
